@@ -3,7 +3,7 @@
 # Date: January 2017
 #
 
-using PyCall, PyPlot, JUDI.TimeModeling
+using PyCall, PyPlot, JUDI.TimeModeling, Test, LinearAlgebra
 
 ## Set up model structure
 n = (120,100)	# (x,y,z) or (x,z)
@@ -11,11 +11,11 @@ d = (10.,10.)
 o = (0.,0.)
 
 # Velocity [km/s]
-v = ones(Float32,n) + 0.4f0
-v[:,Int(round(end/2)):end] = 4f0
+v = ones(Float32,n) .+ 0.4f0
+v[:,Int(round(end/2)):end] .= 4f0
 
 # Slowness squared [s^2/km^2]
-m = (1f0./v).^2
+m = (1f0 ./ v).^2
 
 # Setup info and model structure
 nsrc = 1
@@ -25,9 +25,9 @@ model = Model(n,d,o,m)
 
 ## Set up receiver geometry
 nxrec = 120
-xrec = linspace(50f0,1150f0,nxrec)
+xrec = range(50f0,stop=1150f0,length=nxrec)
 yrec = 0f0
-zrec = linspace(50f0,50f0,nxrec)
+zrec = range(50f0,stop=50f0,length=nxrec)
 
 # receiver sampling and recording time
 timeR = 1000f0	# receiver recording time [ms]
@@ -55,7 +55,7 @@ srcGeometry2 = Geometry(xsrc2,ysrc2,zsrc2;dt=dtS,t=timeS)
 
 # setup wavelet
 f0 = 0.01f0
-wavelet = source(timeS,dtS,f0)
+wavelet = ricker_wavelet(timeS,dtS,f0)
 
 ###################################################################################################
 
@@ -67,15 +67,10 @@ F = judiModeling(info,model)
 q1 = judiVector(srcGeometry1,wavelet)
 q2 = judiVector(srcGeometry2,wavelet)
 
-d1 = Pr*F*Ps1'*q1
-d2 = Pr*F*Ps2'*q2
-d3 = Pr*F*(Ps1'*q1 + Ps2'*q2)
-d4 = Pr*F*(Ps1'*q1 - Ps2'*q2)
+d1 = Pr*F*adjoint(Ps1)*q1
+d2 = Pr*F*adjoint(Ps2)*q2
+d3 = Pr*F*(adjoint(Ps1)*q1 + adjoint(Ps2)*q2)
+d4 = Pr*F*(adjoint(Ps1)*q1 - adjoint(Ps2)*q2)
 
-println("addition: ", norm(d3 - (d1 + d2)))
-println("subtraction: ", norm(d4 - (d1 - d2)))
-
-
-
-
-
+@test isapprox(norm(d3), norm(d1 + d2))
+@test isapprox(norm(d4), norm(d1 - d2))
